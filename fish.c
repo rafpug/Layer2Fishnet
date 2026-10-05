@@ -140,7 +140,10 @@ void my_arp_received(void *l2frame)
    struct l2_header l2_cap;
    struct arp_header l3_cap;
    
-   struct l2_header *l2frame_cap = (struct l2_header *) malloc(sizeof(l2_cap) + sizeof(l3_cap));
+   struct l2_header *l2frame_cap = (struct l2_header *) calloc(1, sizeof(l2_cap) + sizeof(l3_cap));
+   if (l2frame_cap == NULL) {
+      return;
+   }
 
    memcpy(&l2_cap, l2frame, sizeof(l2_cap));
    memcpy(&l3_cap, l2frame+sizeof(l2_cap), sizeof(l3_cap));
@@ -158,7 +161,7 @@ void my_arp_received(void *l2frame)
         struct arp_header *arpframe = (struct arp_header *) l2frame_cap+1;
         arpframe->query_type = htonl(0x02);
         arpframe->queried_l2_addr = fish_getl2address();
-        l2frame_cap->checksum = in_cksum(l2frame, sizeof(l2_cap)+sizeof(l3_cap));
+        l2frame_cap->checksum = in_cksum(l2frame_cap, sizeof(l2_cap)+sizeof(l3_cap));
         fish_l1_send(l2frame_cap);
       } 
    } else if (type == 0x02) {
