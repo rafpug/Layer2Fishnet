@@ -84,7 +84,7 @@ static void keyboard_callback(char *line)
 void my_arp_resolution_cb(fn_l2addr_t addr, void *param) {
    struct l2_header *capped = (struct l2_header*) param;
    capped->dst = addr;
-   capped->checksum = htons(in_cksum(capped, ntohs(capped->length)));
+   capped->checksum = in_cksum(capped, ntohs(capped->length));
    fish_l1_send(capped);
    free(capped);
    return;
