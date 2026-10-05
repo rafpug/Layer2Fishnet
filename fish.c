@@ -22,7 +22,7 @@ struct l2_header {
 } __attribute__((packed));
 
 struct arp_header {
-    uint64_t query_type;
+    uint32_t query_type;
     fnaddr_t queried_l3_addr;
     fn_l2addr_t queried_l2_addr;
 } __attribute__((packed));
@@ -142,7 +142,7 @@ void my_arp_received(void *l2frame)
    memcpy(&l2_cap, l2frame, sizeof(l2_cap));
    memcpy(&l3_cap, l2frame+sizeof(l2_cap), sizeof(l3_cap));
 
-   uint64_t type = ntohs(l3_cap.query_type);
+   uint64_t type = ntohl(l3_cap.query_type);
    if (type == 0x01) {
       /* ARP Request */
       uint32_t my_ip = fish_getaddress();
@@ -291,8 +291,8 @@ int main(int argc, char **argv)
 #ifdef L2_IMPL
    // Examples of overriding function pointers for program 2 base functionality
    //fish_l2.fishnode_l2_receive = &my_fishnode_l2_receive;
-   fish_l2.fish_l2_send = &my_fish_l2_send;
-   //fish_arp.arp_received = &my_arp_received;
+   //fish_l2.fish_l2_send = &my_fish_l2_send;
+   fish_arp.arp_received = &my_arp_received;
    //fish_arp.send_arp_request = &my_send_arp_request;
    // Full functionality functions
    //fish_arp.add_arp_entry = &my_add_arp_entry;
