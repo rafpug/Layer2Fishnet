@@ -167,6 +167,23 @@ void my_arp_received(void *l2frame)
 
 void my_send_arp_request(fnaddr_t l3addr)
 {
+    char frame[sizeof(struct l2_header) + sizeof(struct arp_header)];
+
+    struct l2_header *l2_cap = (struct l2_header *) frame;
+    struct arp_header *arp_cap = (struct arp_header *) l2_cap + 1;
+
+    l2_cap->dst = ALL_L2_NEIGHBORS;
+    l2_cap->src = fish_getl2address();
+    l2_cap->checksum = 0;
+    l2_cap->length = htons(sizeof(struct l2_header) + sizeof(struct arp_header));
+    l2_cap->l3_protocol = 2;
+    
+    arp_cap->query_type = htonl(1);
+    arp_cap->queried_l3_addr = l3addr;
+    
+    l2_cap->checksum = in_cksum(frame, sizeof(struct l2_header) + sizeof(struct arp_header));
+    fish_l1_send(frame);
+    return;
 }
 
 void my_add_arp_entry(fn_l2addr_t l2addr, fnaddr_t addr, int timeout)
