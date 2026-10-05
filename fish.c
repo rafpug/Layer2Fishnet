@@ -93,13 +93,15 @@ void my_arp_resolution_cb(fn_l2addr_t addr, void *param) {
 int my_fish_l2_send(void *l3frame, fnaddr_t next_hop, int len, uint8_t l2_proto)
 {
    struct l2_header *capped = (struct l2_header*) malloc(len + sizeof(struct l2_header));
-
+   if (capped == NULL) {
+      return -1;
+   }
    capped->src = fish_getl2address();
    capped->checksum = 0;
    capped->length = len + sizeof(struct l2_header);
    capped->l3_protocol = l2_proto;
    
-   memcpy(capped + sizeof(struct l2_header), l3frame, len);
+   memcpy(capped + 1, l3frame, len);
    fish_arp.resolve_fnaddr(next_hop, my_arp_resolution_cb, capped);
    return 0;
 }
@@ -236,8 +238,8 @@ int main(int argc, char **argv)
 
 #ifdef L2_IMPL
    // Examples of overriding function pointers for program 2 base functionality
-   fish_l2.fishnode_l2_receive = &my_fishnode_l2_receive;
-   //fish_l2.fish_l2_send = &my_fish_l2_send;
+   //fish_l2.fishnode_l2_receive = &my_fishnode_l2_receive;
+   fish_l2.fish_l2_send = &my_fish_l2_send;
    //fish_arp.arp_received = &my_arp_received;
    //fish_arp.send_arp_request = &my_send_arp_request;
    // Full functionality functions
