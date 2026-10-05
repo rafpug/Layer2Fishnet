@@ -80,8 +80,27 @@ static void keyboard_callback(char *line)
 
 // Prototypes for program 2.  Taken directly from fish.h header file
 #ifdef L2_IMPL
+
+void my_arp_resolution_cb(fn_l2addr_t addr, void *param) {
+   struct l2_header *capped = (struct l2_header*) param;
+   capped->dst = addr;
+   capped->checksum = in_cksum(capped, capped->length);
+   fish_l1_send(capped);
+   free(capped);
+   return;
+}
+
 int my_fish_l2_send(void *l3frame, fnaddr_t next_hop, int len, uint8_t l2_proto)
 {
+   struct l2_header *capped = (struct l2_header*) malloc(len + sizeof(struct l2_header));
+
+   capped->src = fish_getl2address();
+   capped->checksum = 0;
+   capped->length = len + sizeof(struct l2_header);
+   capped->l3_protocol = l2_proto;
+   
+   memcpy(capped + sizeof(struct l2_header), l3frame, len);
+   fish_arp.resolve_fnaddr(next_hop, my_arp_resolution_cb, capped);
    return 0;
 }
 
