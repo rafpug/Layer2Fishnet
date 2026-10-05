@@ -128,6 +128,7 @@ int my_fishnode_l2_receive(void *l2frame)
    if (FNL2_EQ(cap.dst, my_address) || FNL2_EQ(cap.dst, ALL_L2_NEIGHBORS)) {
       if (cap.l3_protocol == 0x02) {
          fish_arp.arp_received(l2frame);
+         return 0;
       }
       fish_l3.fish_l3_receive(l2frame+sizeof(cap), total_length-sizeof(cap), cap.l3_protocol);
    }
@@ -151,14 +152,14 @@ void my_arp_received(void *l2frame)
       uint32_t query_ip = ntohl(l3_cap.queried_l3_addr);
 
       if (my_ip == query_ip) {
-        l2frame_cap->dst = l2frame_cap->src;
+        l2frame_cap->dst = l2cap.src;
         l2frame_cap->src = fish_getl2address();
         l2frame_cap->checksum = 0;
         struct arp_header *arpframe = (struct arp_header *) l2frame_cap+1;
         arpframe->query_type = htonl(0x02);
         arpframe->queried_l2_addr = fish_getl2address();
         l2frame_cap->checksum = in_cksum(l2frame, sizeof(l2_cap)+sizeof(l3_cap));
-        fish_l1_send(l2frame);
+        fish_l1_send(l2frame_cap);
       } 
    } else if (type == 0x02) {
         fish_arp.add_arp_entry(l3_cap.queried_l2_addr, ntohl(l3_cap.queried_l3_addr), 180);
