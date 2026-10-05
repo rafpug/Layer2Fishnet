@@ -26,7 +26,7 @@ endif
 all:  fish-$(EXEC_SUFFIX)
 
 fish-$(EXEC_SUFFIX): fish.c
-	$(CC) $(CFLAGS) $(OSINC) $(OSLIB) $(OSDEF) -o $@ fish.c smartalloc.c -lfish 
+	$(CC) $(CFLAGS) $(OSINC) $(OSLIB) $(OSDEF) -o $@ fish.c smartalloc.c libfish-Linux-x86_64.a 
 
 handin: README
 	~bellardo/bin/rcvhandin bellardo p2 README smartalloc.c smartalloc.h fish.c Makefile

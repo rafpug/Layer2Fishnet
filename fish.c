@@ -2,10 +2,25 @@
 #include <assert.h>
 #include <signal.h>
 #include <string.h>
+#include "smartalloc.h"
+#include <stdint.h>
+#include <string.h>
+#include <stdio.h>
+#include <arpa/inet.h>
 
 #define DEBUG
-
+#define L2_IMPL
+ 
 static int noprompt = 0;
+
+struct l2_header {
+    fn_l2addr_t dst;
+    fn_l2addr_t src;
+    uint16_t checksum;
+    uint16_t length;
+    uint8_t l3_protocol;
+} __attribute__((packed));
+
 
 void sigint_handler(int sig)
 {
@@ -72,6 +87,21 @@ int my_fish_l2_send(void *l3frame, fnaddr_t next_hop, int len, uint8_t l2_proto)
 
 int my_fishnode_l2_receive(void *l2frame)
 {
+   struct l2_header cap;
+   memcpy(&cap, l2frame, sizeof(cap));
+
+   uint16_t total_length = ntohs(cap.length);
+   
+   unsigned short corrupted = in_cksum(l2frame, total_length);
+   if (corrupted) {
+      return 0;
+   }
+
+   fn_l2addr_t my_address = fish_getl2address();
+
+   if (FNL2_EQ(cap.dst, my_address) || FNL2_EQ(cap.dst, ALL_L2_NEIGHBORS)) {
+      fish_l3.fish_l3_receive(l2frame+sizeof(cap), total_length-sizeof(cap),            cap.l3_protocol);
+   }
    return 0;
 }
 
@@ -188,15 +218,16 @@ int main(int argc, char **argv)
 #ifdef L2_IMPL
    // Examples of overriding function pointers for program 2 base functionality
    fish_l2.fishnode_l2_receive = &my_fishnode_l2_receive;
-   fish_l2.fish_l2_send = &my_fish_l2_send;
-   fish_arp.arp_received = &my_arp_received;
-   fish_arp.send_arp_request = &my_send_arp_request;
+   //fish_l2.fish_l2_send = &my_fish_l2_send;
+   //fish_arp.arp_received = &my_arp_received;
+   //fish_arp.send_arp_request = &my_send_arp_request;
    // Full functionality functions
-   fish_arp.add_arp_entry = &my_add_arp_entry;
-   fish_arp.resolve_fnaddr = &my_resolve_fnaddr;
+   //fish_arp.add_arp_entry = &my_add_arp_entry;
+   //fish_arp.resolve_fnaddr = &my_resolve_fnaddr;
 #endif
 
 #ifdef L3_IMPL
+/*
    fish_l3.fishnode_l3_receive = &my_fishnode_l3_receive;
    fish_l3.fish_l3_send = &my_fish_l3_send;
    fish_l3.fish_l3_forward = &my_fish_l3_forward;
@@ -206,7 +237,7 @@ int main(int argc, char **argv)
    fish_fwd.add_fwtable_entry = &my_add_fwtable_entry;
    fish_fwd.remove_fwtable_entry = &my_remove_fwtable_entry;
    fish_fwd.update_fwtable_metric = &my_update_fwtable_metric;
-   fish_fwd.longest_prefix_match = &my_longest_prefix_match;
+   fish_fwd.longest_prefix_match = &my_longest_prefix_match;*/
 #endif
 
 #if 1
