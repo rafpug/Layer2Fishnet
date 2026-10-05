@@ -21,6 +21,11 @@ struct l2_header {
     uint8_t l3_protocol;
 } __attribute__((packed));
 
+struct arp_header {
+    uint64_t query_type;
+    fnaddr_t queried_l3_addr;
+    fn_l2addr_t queried_l2_addr;
+} __attribute__((packed));
 
 void sigint_handler(int sig)
 {
@@ -121,13 +126,43 @@ int my_fishnode_l2_receive(void *l2frame)
    fn_l2addr_t my_address = fish_getl2address();
 
    if (FNL2_EQ(cap.dst, my_address) || FNL2_EQ(cap.dst, ALL_L2_NEIGHBORS)) {
-      fish_l3.fish_l3_receive(l2frame+sizeof(cap), total_length-sizeof(cap),            cap.l3_protocol);
+      if (cap.l3_protocol == 0x02) {
+         fish_arp.arp_received(l2frame);
+      }
+      fish_l3.fish_l3_receive(l2frame+sizeof(cap), total_length-sizeof(cap), cap.l3_protocol);
    }
    return 0;
 }
 
 void my_arp_received(void *l2frame)
 {
+   struct l2_header l2_cap;
+   struct arp_header l3_cap;
+
+   memcpy(&l2_cap, l2frame, sizeof(l2_cap));
+   memcpy(&l3_cap, l2frame+sizeof(l2_cap), sizeof(l3_cap));
+
+   uint64_t type = ntohs(l3_cap.query_type);
+   if (type == 0x01) {
+      /* ARP Request */
+      uint32_t my_ip = fish_getaddress();
+      uint32_t query_ip = ntohl(l3_cap.queried_l3_addr);
+
+      if (my_ip == query_ip) {
+        struct l2_header *l2frame_cap = (struct l2_header *) l2frame;
+        l2frame_cap->dst = l2frame_cap->src;
+        l2frame_cap->src = fish_getl2address();
+        l2frame_cap->checksum = 0;
+        struct arp_header *arpframe = (struct arp_header *) l2frame_cap+1;
+        arpframe->query_type = htonl(0x02);
+        arpframe->queried_l2_addr = fish_getl2address();
+        l2frame_cap->checksum = in_cksum(l2frame, sizeof(l2_cap)+sizeof(l3_cap));
+        fish_l1_send(l2frame);
+      } 
+   } else if (type == 0x02) {
+        fish_arp.add_arp_entry(l3_cap.queried_l2_addr, ntohl(l3_cap.queried_l3_addr), 180);
+   }
+   return;
 }
 
 void my_send_arp_request(fnaddr_t l3addr)
@@ -255,6 +290,8 @@ int main(int argc, char **argv)
    // Set up a callback to broadcast DV advertisement
    fish_scheduleevent(0, &my_timed_event, NULL);
    // Full functionality
+   fish_scheduleevent(0, &my_timed_event, NULL);
+   // Full functionality
    fish_fwd.add_fwtable_entry = &my_add_fwtable_entry;
    fish_fwd.remove_fwtable_entry = &my_remove_fwtable_entry;
    fish_fwd.update_fwtable_metric = &my_update_fwtable_metric;
@@ -303,6 +340,5 @@ int main(int argc, char **argv)
    fishnet_cleanup();
 
    // Cleanup your data structures here
-
-	return 0;
+   return 0;
 }
