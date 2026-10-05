@@ -152,7 +152,7 @@ void my_arp_received(void *l2frame)
       uint32_t query_ip = ntohl(l3_cap.queried_l3_addr);
 
       if (my_ip == query_ip) {
-        l2frame_cap->dst = l2cap.src;
+        l2frame_cap->dst = l2_cap.src;
         l2frame_cap->src = fish_getl2address();
         l2frame_cap->checksum = 0;
         struct arp_header *arpframe = (struct arp_header *) l2frame_cap+1;
