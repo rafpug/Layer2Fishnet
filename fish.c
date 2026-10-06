@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include <arpa/inet.h>
 
-#define DEBUG
+
 #define L2_IMPL
  
 static int noprompt = 0;
@@ -126,9 +126,7 @@ int my_fishnode_l2_receive(void *l2frame)
    fn_l2addr_t my_address = fish_getl2address();
 
    if (FNL2_EQ(cap.dst, my_address) || FNL2_EQ(cap.dst, ALL_L2_NEIGHBORS)) {
-      printf("TEST!@#$\n");
       if (cap.l3_protocol == 0x02) {
-         printf("TEST1234\n");
          fish_arp.arp_received(l2frame);
          return 0;
       }
@@ -139,7 +137,6 @@ int my_fishnode_l2_receive(void *l2frame)
 
 void my_arp_received(void *l2frame)
 {
-   printf("TEST5678\n");
    struct l2_header l2_cap;
    struct arp_header l3_cap;
    
@@ -153,13 +150,11 @@ void my_arp_received(void *l2frame)
    memcpy(l2frame_cap, l2frame, sizeof(l2_cap) + sizeof(l3_cap));
    uint32_t type = ntohl(l3_cap.query_type);
    if (type == 0x01) {
-      printf("Type: ARP request\n");
       /* ARP Request */
       uint32_t my_ip = fish_getaddress();
       uint32_t query_ip = l3_cap.queried_l3_addr;
 
       if (my_ip == query_ip) {
-        printf("Matched ip\n");
         l2frame_cap->dst = l2_cap.src;
         l2frame_cap->src = fish_getl2address();
         l2frame_cap->checksum = 0;
@@ -170,7 +165,6 @@ void my_arp_received(void *l2frame)
         fish_l1_send(l2frame_cap);
       } 
    } else if (type == 0x02) {
-        printf("Type: ARP response\n");
         fish_arp.add_arp_entry(l3_cap.queried_l2_addr, l3_cap.queried_l3_addr, 180);
    }
    free(l2frame_cap);
@@ -191,7 +185,7 @@ void my_send_arp_request(fnaddr_t l3addr)
     l2_cap->l3_protocol = 2;
     
     arp_cap->query_type = htonl(1);
-    arp_cap->queried_l3_addr = htonl(l3addr);
+    arp_cap->queried_l3_addr = l3addr;
     
     l2_cap->checksum = in_cksum(frame, sizeof(struct l2_header) + sizeof(struct arp_header));
     fish_l1_send(frame);
@@ -303,9 +297,9 @@ int main(int argc, char **argv)
 #ifdef L2_IMPL
    // Examples of overriding function pointers for program 2 base functionality
    fish_l2.fishnode_l2_receive = &my_fishnode_l2_receive;
-   //fish_l2.fish_l2_send = &my_fish_l2_send;
+   fish_l2.fish_l2_send = &my_fish_l2_send;
    fish_arp.arp_received = &my_arp_received;
-   //fish_arp.send_arp_request = &my_send_arp_request;
+   fish_arp.send_arp_request = &my_send_arp_request;
    // Full functionality functions
    //fish_arp.add_arp_entry = &my_add_arp_entry;
    //fish_arp.resolve_fnaddr = &my_resolve_fnaddr;
