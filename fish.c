@@ -126,7 +126,9 @@ int my_fishnode_l2_receive(void *l2frame)
    fn_l2addr_t my_address = fish_getl2address();
 
    if (FNL2_EQ(cap.dst, my_address) || FNL2_EQ(cap.dst, ALL_L2_NEIGHBORS)) {
+      printf("TEST!@#$\n");
       if (cap.l3_protocol == 0x02) {
+         printf("TEST1234\n");
          fish_arp.arp_received(l2frame);
          return 0;
       }
@@ -137,6 +139,7 @@ int my_fishnode_l2_receive(void *l2frame)
 
 void my_arp_received(void *l2frame)
 {
+   printf("TEST5678\n");
    struct l2_header l2_cap;
    struct arp_header l3_cap;
    
@@ -147,25 +150,28 @@ void my_arp_received(void *l2frame)
 
    memcpy(&l2_cap, l2frame, sizeof(l2_cap));
    memcpy(&l3_cap, l2frame+sizeof(l2_cap), sizeof(l3_cap));
-
-   uint64_t type = ntohl(l3_cap.query_type);
+   memcpy(l2frame_cap, l2frame, sizeof(l2_cap) + sizeof(l3_cap));
+   uint32_t type = ntohl(l3_cap.query_type);
    if (type == 0x01) {
+      printf("Type: ARP request\n");
       /* ARP Request */
       uint32_t my_ip = fish_getaddress();
-      uint32_t query_ip = ntohl(l3_cap.queried_l3_addr);
+      uint32_t query_ip = l3_cap.queried_l3_addr;
 
       if (my_ip == query_ip) {
+        printf("Matched ip\n");
         l2frame_cap->dst = l2_cap.src;
         l2frame_cap->src = fish_getl2address();
         l2frame_cap->checksum = 0;
-        struct arp_header *arpframe = (struct arp_header *) l2frame_cap+1;
+        struct arp_header *arpframe = (struct arp_header *) (l2frame_cap+1);
         arpframe->query_type = htonl(0x02);
         arpframe->queried_l2_addr = fish_getl2address();
         l2frame_cap->checksum = in_cksum(l2frame_cap, sizeof(l2_cap)+sizeof(l3_cap));
         fish_l1_send(l2frame_cap);
       } 
    } else if (type == 0x02) {
-        fish_arp.add_arp_entry(l3_cap.queried_l2_addr, ntohl(l3_cap.queried_l3_addr), 180);
+        printf("Type: ARP response\n");
+        fish_arp.add_arp_entry(l3_cap.queried_l2_addr, l3_cap.queried_l3_addr, 180);
    }
    free(l2frame_cap);
    return;
@@ -176,7 +182,7 @@ void my_send_arp_request(fnaddr_t l3addr)
     char frame[sizeof(struct l2_header) + sizeof(struct arp_header)];
 
     struct l2_header *l2_cap = (struct l2_header *) frame;
-    struct arp_header *arp_cap = (struct arp_header *) l2_cap + 1;
+    struct arp_header *arp_cap = (struct arp_header *) (l2_cap + 1);
 
     l2_cap->dst = ALL_L2_NEIGHBORS;
     l2_cap->src = fish_getl2address();
