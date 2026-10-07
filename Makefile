@@ -23,13 +23,13 @@ else
 endif
 endif
 
-all:  fish-$(EXEC_SUFFIX)
+all:  fishnode-$(EXEC_SUFFIX)
 
-fish-$(EXEC_SUFFIX): fish.c
-	$(CC) $(CFLAGS) $(OSINC) $(OSLIB) $(OSDEF) -o $@ fish.c smartalloc.c libfish-Linux-x86_64.a 
+fishnode-$(EXEC_SUFFIX): fishnode.c
+	$(CC) $(CFLAGS) $(OSINC) $(OSLIB) $(OSDEF) -o $@ fishnode.c smartalloc.c libfish-Linux-x86_64.a 
 
 handin: README
-	~bellardo/bin/rcvhandin bellardo p2 README smartalloc.c smartalloc.h fish.c Makefile
+	~bellardo/bin/rcvhandin bellardo p2 README smartalloc.c smartalloc.h fishnode.c fish.h Makefile libfish-Linux-x86_64.a
 
 clean:
-	rm -rf fish-* fish-*.dSYM
+	rm -rf fishnode-* fishnode-*.dSYM

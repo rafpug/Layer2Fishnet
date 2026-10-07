@@ -7,6 +7,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <arpa/inet.h>
+#include <time.h>
 
 
 #define L2_IMPL
@@ -32,6 +33,27 @@ void sigint_handler(int sig)
    if (SIGINT == sig)
 	   fish_main_exit();
 }
+
+struct arp_entry {
+    fn_l2addr_t l2addr;
+    fn_addr_t addr;
+    time_t timeout;
+    struct arp_entry *next;
+} __attribute__((packed));
+
+struct arp_queue {
+    fn_addr_t addr;
+    arp_resolution_cb cb;
+    void *param;
+    int attempt;
+    struct arp_queue *next;
+} __attribute__((packed));
+
+struct arp_queue *queue_head = NULL;
+struct arp_queue *queue_tail = NULL;
+
+struct arp_entry *cache_head = NULL;
+struct arp_entry *cache_tail = NULL;
 
 static int print_route(void *callback_data __attribute__((unused)),
       fnaddr_t dest, int prefix_len __attribute((unused)),
@@ -194,10 +216,60 @@ void my_send_arp_request(fnaddr_t l3addr)
 
 void my_add_arp_entry(fn_l2addr_t l2addr, fnaddr_t addr, int timeout)
 {
+    
+    struct arp_queue *cur_queue = queue_head;
+    struct arp_queue *prev_queue = NULL;
+    while (cur_queue != NULL) {
+        if (cur_queue->addr = addr) {
+            cur_queue->cb(l2addr, cur_queue->param);
+            prev_queue->next = cur_queue->next;
+
+            if (cur_queue == queue_tail) {
+                queue_tail = prev_queue;
+            }
+            free(cur_queue);
+        }
+
+        prev_queue = cur_queue;
+        cur_queue = cur_queue->next;
+    }
+            
+    
+    struct arp_entry *cur_entry = cache_head;
+    while(cur_entry != NULL) {
+        if (cur_entry->addr == addr && FNL2_EQ(cur_entry->l2addr, l2addr)) {
+            cur_entry->timeout = time(NULL) + timeout;
+            return;
+        }
+    }
+    cache_tail->next = (struct arp_entry *) calloc(1, sizeof(struct arp_entry));
+    if (cache_tail->next == NULL) {
+        return;
+    }
+    cache_tail = cache_tail->next;
+    cache_tail->l2addr = l2addr;
+    cache_tail->addr = addr;
+    cache_tail->timeout = time(NULL) + timeout;
 }
 
 void my_resolve_fnaddr(fnaddr_t addr, arp_resolution_cb cb, void *param)
 {
+    struct arp_entry cur_entry = cache_head;
+    time_t cur_time = time(NULL);
+
+    while(cur_entry != NULL) {
+        if(cur_entry->addr == addr) {
+            if (cur_entry->timeout <= cur_time) {
+                break;
+            }
+            cb(cur_entry->l2addr, param);
+            return;
+        }
+        /* ToDo clear timedout entries */
+        cur_entry = cur_entry->next;
+    }
+    
+    
 }
 #endif
 
@@ -301,8 +373,8 @@ int main(int argc, char **argv)
    fish_arp.arp_received = &my_arp_received;
    fish_arp.send_arp_request = &my_send_arp_request;
    // Full functionality functions
-   //fish_arp.add_arp_entry = &my_add_arp_entry;
-   //fish_arp.resolve_fnaddr = &my_resolve_fnaddr;
+   fish_arp.add_arp_entry = &my_add_arp_entry;
+   fish_arp.resolve_fnaddr = &my_resolve_fnaddr;
 #endif
 
 #ifdef L3_IMPL
@@ -350,6 +422,18 @@ int main(int argc, char **argv)
     );
 #endif
 
+   cache_head = (struct arp_entry *) calloc(1, sizeof(struct arp_entry))
+   if (cache_head == NULL) {
+      return 1;
+   }
+   cache_tail = cache_head;
+
+   queue_head = (struct arp_queue *) calloc(1, sizeof(struct arp_queue));
+   if (queue_head == NULL) {
+      return 1;
+   }
+   queue_tail = queue_head;
+
    /* Execute the libfish event loop */
 	fish_main();
 
@@ -363,5 +447,15 @@ int main(int argc, char **argv)
    fishnet_cleanup();
 
    // Cleanup your data structures here
+   while (cache_head != NULL) {
+        void *prev = cache_head;
+        cache_head = cache_head->next;
+        free(prev);
+   }
+   while (queue_head != NULL) {
+        void *prev = queue_head;
+        queue_head = queue_head->next;
+        free(prev);
+   }
    return 0;
 }
