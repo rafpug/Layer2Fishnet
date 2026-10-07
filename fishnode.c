@@ -42,15 +42,21 @@ struct arp_entry {
 } __attribute__((packed));
 
 struct arp_queue {
-    fn_addr_t addr;
     arp_resolution_cb cb;
     void *param;
-    int attempt;
     struct arp_queue *next;
 } __attribute__((packed));
 
-struct arp_queue *queue_head = NULL;
-struct arp_queue *queue_tail = NULL;
+struct arp_pending {
+    fn_addr_t addr;
+    int attempt;
+    struct arp_queue *queue_head;
+    struct arp_queue *queue_tail;
+    struct arp_pending *next;
+} __attribute__((packed));
+
+struct arp_pending *pending_head = NULL;
+struct arp_pending *pending_tail = NULL;
 
 struct arp_entry *cache_head = NULL;
 struct arp_entry *cache_tail = NULL;
@@ -216,23 +222,32 @@ void my_send_arp_request(fnaddr_t l3addr)
 
 void my_add_arp_entry(fn_l2addr_t l2addr, fnaddr_t addr, int timeout)
 {
-    
-    struct arp_queue *cur_queue = queue_head;
-    struct arp_queue *prev_queue = NULL;
-    while (cur_queue != NULL) {
-        if (cur_queue->addr = addr) {
-            cur_queue->cb(l2addr, cur_queue->param);
-            prev_queue->next = cur_queue->next;
-
-            if (cur_queue == queue_tail) {
-                queue_tail = prev_queue;
+    struct arp_pending *cur_pending = pending_head;
+    struct arp_pending *prev_pending = NULL;
+    while (cur_pending != NULL) {
+        if (cur_pending->addr == addr) {
+            while(cur_pending->queue_head) {
+                cur_pending->queue_head->cb(l2addr, cur_pending->queue_head->param);
+                void *queue_prev = cur_pending->queue_head;
+                cur_pending->queue_head = cur_pending->queue_head->next;
+                free(queue_prev);
             }
-            free(cur_queue);
-        }
+            if (prev_pending == NULL) {
+                pending_head = cur_pending->next;
+            } else {
+                if (cur_pending->next == NULL) {
+                    pending_tail = prev_pending;
+                }
+                prev_pending->next = cur_pending->next;
+            }
+            free(cur_pending);
 
-        prev_queue = cur_queue;
-        cur_queue = cur_queue->next;
-    }
+            break;
+        }
+        prev_pending = cur_pending;
+        cur_pending = cur_pending->next;
+    }    
+
             
     
     struct arp_entry *cur_entry = cache_head;
@@ -241,6 +256,7 @@ void my_add_arp_entry(fn_l2addr_t l2addr, fnaddr_t addr, int timeout)
             cur_entry->timeout = time(NULL) + timeout;
             return;
         }
+        cur_entry = cur_entry->next;
     }
     cache_tail->next = (struct arp_entry *) calloc(1, sizeof(struct arp_entry));
     if (cache_tail->next == NULL) {
@@ -268,8 +284,16 @@ void my_resolve_fnaddr(fnaddr_t addr, arp_resolution_cb cb, void *param)
         /* ToDo clear timedout entries */
         cur_entry = cur_entry->next;
     }
-    
-    
+    /* No cache hit */
+    queue_tail->next = (struct arp_queue *) calloc(1, sizeof(struct arp_queue));
+    if (queue_tail->next == NULL) {
+        return;
+    }
+    queue_tail = queue_tail->next;
+    queue_tail->addr = addr;
+    queue_tail->cb = cb;
+    queue_tail->param = param;
+    queue_tail->attempt = 1;
 }
 #endif
 
@@ -428,11 +452,6 @@ int main(int argc, char **argv)
    }
    cache_tail = cache_head;
 
-   queue_head = (struct arp_queue *) calloc(1, sizeof(struct arp_queue));
-   if (queue_head == NULL) {
-      return 1;
-   }
-   queue_tail = queue_head;
 
    /* Execute the libfish event loop */
 	fish_main();
@@ -452,7 +471,12 @@ int main(int argc, char **argv)
         cache_head = cache_head->next;
         free(prev);
    }
-   while (queue_head != NULL) {
+   while (pending_head != NULL) {
+        while (pending_head->queue_head != NULL) {
+            void *queue_prev = pending_head->queue_head;
+            pending_head->queue_head = pending_head->queue_head->next;
+            free(queue_prev);
+        }
         void *prev = queue_head;
         queue_head = queue_head->next;
         free(prev);
