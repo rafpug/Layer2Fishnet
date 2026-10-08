@@ -260,14 +260,23 @@ void my_add_arp_entry(fn_l2addr_t l2addr, fnaddr_t addr, int timeout)
         }
         cur_entry = cur_entry->next;
     }
-    cache_tail->next = (struct arp_entry *) calloc(1, sizeof(struct arp_entry));
-    if (cache_tail->next == NULL) {
+
+    void *new_entry = calloc(1, sizeof(struct arp_entry));
+    
+    if (new_entry == NULL) {
         return;
     }
-    cache_tail = cache_tail->next;
+    if (cache_tail == NULL) {
+        cache_tail = new_entry;
+        cache_head = new_entry;
+    } else {
+        cache_tail->next = new_entry;
+        cache_tail = cache_tail->next;
+    }
     cache_tail->l2addr = l2addr;
     cache_tail->addr = addr;
     cache_tail->timeout = time(NULL) + timeout;
+    return;
 }
 
 void retry_cb(void *ip) {
@@ -295,7 +304,6 @@ void retry_cb(void *ip) {
                     pending_tail = prev_pending;
                 }
                 free(cur_pending);
-                free(ip);
                 return;
             }
             cur_pending->attempt++;
@@ -319,19 +327,22 @@ void my_resolve_fnaddr(fnaddr_t addr, arp_resolution_cb cb, void *param)
     while(cur_entry != NULL) {
         if (cur_entry->timeout <= cur_time) {
             if (prev_entry == NULL) {
-                cache_head = prev_entry;
+                cache_head = cur_entry->next;
             } else {
                 prev_entry->next = cur_entry->next;
             }
             if (cur_entry->next == NULL) {
                 cache_tail = prev_entry;
             }
-            free(cur_entry);
+            void *del_entry = cur_entry;
+            cur_entry = cur_entry->next; 
+            free(del_entry);
+            continue;
         } else if (cur_entry->addr == addr) {
             cb(cur_entry->l2addr, param);
             return;
         }
-
+        prev_entry = cur_entry;
         cur_entry = cur_entry->next;
     }
     /* No cache hit */
@@ -538,12 +549,6 @@ int main(int argc, char **argv)
          | DVROUTING_KEEP_ROUTE_HISTORY
     );
 #endif
-
-   cache_head = (struct arp_entry *) calloc(1, sizeof(struct arp_entry));
-   if (cache_head == NULL) {
-      return 1;
-   }
-   cache_tail = cache_head;
 
 
    /* Execute the libfish event loop */
