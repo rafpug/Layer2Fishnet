@@ -9,7 +9,6 @@
 #include <arpa/inet.h>
 #include <time.h>
 
-#define DEBUG
 #define L2_IMPL
  
 static int noprompt = 0;
@@ -39,13 +38,13 @@ struct arp_entry {
     fnaddr_t addr;
     time_t timeout;
     struct arp_entry *next;
-} __attribute__((packed));
+};
 
 struct arp_queue {
     arp_resolution_cb cb;
     void *param;
     struct arp_queue *next;
-} __attribute__((packed));
+};
 
 struct arp_pending {
     fnaddr_t addr;
@@ -53,7 +52,7 @@ struct arp_pending {
     struct arp_queue *queue_head;
     struct arp_queue *queue_tail;
     struct arp_pending *next;
-} __attribute__((packed));
+};
 
 struct arp_pending *pending_head = NULL;
 struct arp_pending *pending_tail = NULL;
@@ -335,6 +334,8 @@ void my_resolve_fnaddr(fnaddr_t addr, arp_resolution_cb cb, void *param)
             struct arp_queue *queue_tail = cur_pending->queue_tail;
             queue_tail->next = (struct arp_queue *) calloc(1, sizeof(struct arp_queue));
             if (queue_tail->next == NULL) {
+                fn_l2addr_t invalid = {0};
+                cb(invalid, param);
                 return;
             }
             cur_pending->queue_tail = queue_tail->next;
@@ -349,12 +350,15 @@ void my_resolve_fnaddr(fnaddr_t addr, arp_resolution_cb cb, void *param)
     /* No ongoing ARPs for ip */
     void *new_pending = calloc(1, sizeof(struct arp_pending));
     if (new_pending == NULL) {
+        cb(addr, param);
         return;
     }
     
     struct arp_queue *new_queue = calloc(1, sizeof(struct arp_queue));
     if (new_queue == NULL) {
         free(new_pending);
+        fn_l2addr_t invalid = {0};
+        cb(invalid, param);
         return;
     }
     new_queue->cb = cb;
@@ -372,6 +376,10 @@ void my_resolve_fnaddr(fnaddr_t addr, arp_resolution_cb cb, void *param)
     pending_tail->queue_tail = new_queue;
 
     fnaddr_t *ip = (fnaddr_t *) malloc(sizeof(fnaddr_t));
+    if (ip == NULL) {
+        fn_l2addr_t invalid = {0};
+        cb(invalid, param);
+        return;
     *ip = addr;
     
     fish_scheduleevent(2500, retry_cb, ip);
