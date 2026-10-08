@@ -350,7 +350,8 @@ void my_resolve_fnaddr(fnaddr_t addr, arp_resolution_cb cb, void *param)
     /* No ongoing ARPs for ip */
     void *new_pending = calloc(1, sizeof(struct arp_pending));
     if (new_pending == NULL) {
-        cb(addr, param);
+        fn_l2addr_t invalid = {0};
+        cb(invalid, param);
         return;
     }
     
@@ -380,6 +381,7 @@ void my_resolve_fnaddr(fnaddr_t addr, arp_resolution_cb cb, void *param)
         fn_l2addr_t invalid = {0};
         cb(invalid, param);
         return;
+    }
     *ip = addr;
     
     fish_scheduleevent(2500, retry_cb, ip);
