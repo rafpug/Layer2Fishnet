@@ -115,6 +115,9 @@ static void keyboard_callback(char *line)
 #ifdef L2_IMPL
 
 void my_arp_resolution_cb(fn_l2addr_t addr, void *param) {
+    if (!FNL2_VALID(addr)) {
+        free(param);
+    }
    struct l2_header *capped = (struct l2_header*) param;
    capped->dst = addr;
    capped->checksum = in_cksum(capped, ntohs(capped->length));
@@ -275,8 +278,11 @@ void retry_cb(void *ip) {
         if (cur_pending->addr == *addr) {
             if (cur_pending->attempt > 3) {
                 while(cur_pending->queue_head) {
-                    void *queue_prev = cur_pending->queue_head;
+                    
+                    struct arp_queue *queue_prev = cur_pending->queue_head;
                     cur_pending->queue_head = cur_pending->queue_head->next;
+                    fn_l2addr_t invalid = {0};
+                    queue_prev->cb(invalid, queue_prev->param);
                     free(queue_prev);
                 }
                 if (prev_pending == NULL) {
@@ -297,6 +303,7 @@ void retry_cb(void *ip) {
             fish_arp.send_arp_request(*addr);
             return;
         }
+        prev_pending = cur_pending;
         cur_pending = cur_pending->next;
     }
     /* ARP succeeded, no pending request for the IP */
@@ -548,8 +555,10 @@ int main(int argc, char **argv)
    }
    while (pending_head != NULL) {
         while (pending_head->queue_head != NULL) {
-            void *queue_prev = pending_head->queue_head;
+            struct arp_queue *queue_prev = pending_head->queue_head;
             pending_head->queue_head = pending_head->queue_head->next;
+            fn_l2addr_t invalid = {0};
+            queue_prev->cb(invalid, queue_prev->param);
             free(queue_prev);
         }
         void *prev = pending_head;
