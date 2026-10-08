@@ -329,6 +329,7 @@ void my_resolve_fnaddr(fnaddr_t addr, arp_resolution_cb cb, void *param)
             if (queue_tail->next == NULL) {
                 return;
             }
+            cur_pending->queue_tail = queue_tail->next;
             queue_tail = queue_tail->next;
             queue_tail->cb = cb;
             queue_tail->param = param;
@@ -343,14 +344,17 @@ void my_resolve_fnaddr(fnaddr_t addr, arp_resolution_cb cb, void *param)
         return;
     }
     
-    void *new_queue = calloc(1, sizeof(struct arp_queue));
+    struct arp_queue *new_queue = calloc(1, sizeof(struct arp_queue));
     if (new_queue == NULL) {
         free(new_pending);
         return;
     }
+    new_queue->cb = cb;
+    new_queue->param = param;
     
     if (pending_tail != NULL) {
         pending_tail->next = new_pending;
+    } else {
         pending_head = new_pending;
     }
     pending_tail = new_pending;
