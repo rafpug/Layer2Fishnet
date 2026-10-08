@@ -273,9 +273,9 @@ void my_add_arp_entry(fn_l2addr_t l2addr, fnaddr_t addr, int timeout)
 void retry_cb(void *ip) {
     struct arp_pending *cur_pending = pending_head;
     struct arp_pending *prev_pending = NULL;
-    fnaddr_t *addr = (fnaddr_t *) ip;
+    fnaddr_t addr = (fnaddr_t)(uintptr_t) ip;
     while (cur_pending != NULL) {
-        if (cur_pending->addr == *addr) {
+        if (cur_pending->addr == addr) {
             if (cur_pending->attempt > 3) {
                 while(cur_pending->queue_head) {
                     
@@ -300,31 +300,38 @@ void retry_cb(void *ip) {
             }
             cur_pending->attempt++;
             fish_scheduleevent(2500, retry_cb, ip);
-            fish_arp.send_arp_request(*addr);
+            fish_arp.send_arp_request(addr);
             return;
         }
         prev_pending = cur_pending;
         cur_pending = cur_pending->next;
     }
     /* ARP succeeded, no pending request for the IP */
-    free(ip);
     return;
 }
 
 void my_resolve_fnaddr(fnaddr_t addr, arp_resolution_cb cb, void *param)
 {
     struct arp_entry *cur_entry = cache_head;
+    struct arp_entry *prev_entry = NULL;
     time_t cur_time = time(NULL);
 
     while(cur_entry != NULL) {
-        if(cur_entry->addr == addr) {
-            if (cur_entry->timeout <= cur_time) {
-                break;
+        if (cur_entry->timeout <= cur_time) {
+            if (prev_entry == NULL) {
+                cache_head = prev_entry;
+            } else {
+                prev_entry->next = cur_entry->next;
             }
+            if (cur_entry->next == NULL) {
+                cache_tail = prev_entry;
+            }
+            free(cur_entry);
+        } else if (cur_entry->addr == addr) {
             cb(cur_entry->l2addr, param);
             return;
         }
-        /* ToDo clear timedout entries */
+
         cur_entry = cur_entry->next;
     }
     /* No cache hit */
@@ -376,15 +383,8 @@ void my_resolve_fnaddr(fnaddr_t addr, arp_resolution_cb cb, void *param)
     pending_tail->queue_head = new_queue;
     pending_tail->queue_tail = new_queue;
 
-    fnaddr_t *ip = (fnaddr_t *) malloc(sizeof(fnaddr_t));
-    if (ip == NULL) {
-        fn_l2addr_t invalid = {0};
-        cb(invalid, param);
-        return;
-    }
-    *ip = addr;
     
-    fish_scheduleevent(2500, retry_cb, ip);
+    fish_scheduleevent(2500, retry_cb, (void *)(uintptr_t) addr);
     fish_arp.send_arp_request(addr);
     return;
 }
