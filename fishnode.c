@@ -9,7 +9,7 @@
 #include <arpa/inet.h>
 #include <time.h>
 
-
+#define DEBUG
 #define L2_IMPL
  
 static int noprompt = 0;
@@ -117,6 +117,7 @@ static void keyboard_callback(char *line)
 void my_arp_resolution_cb(fn_l2addr_t addr, void *param) {
     if (!FNL2_VALID(addr)) {
         free(param);
+        return;
     }
    struct l2_header *capped = (struct l2_header*) param;
    capped->dst = addr;
