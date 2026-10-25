@@ -468,7 +468,7 @@ int my_fishnode_l3_receive(void *l3frame, int len, uint8_t protocol)
    
    fnaddr_t myaddress = fish_getaddress();
    if (myaddress == cap->dest) {
-      fish_l4.fish_l4_receive(l3frame+sizeof(cap), len-sizeof(cap),cap->Protocol, cap->src);
+      fish_l4.fish_l4_receive(cap+1, len-sizeof(struct l3_header),cap->Protocol, cap->src);
       return 0;
    } else if (cap->dest == ALL_NEIGHBORS) {
       if (previously_received(cap->src, cap->PacketID)) {
@@ -517,6 +517,7 @@ int my_fish_l3_forward(void *l3frame, int len)
       fnaddr_t nexthop = fish_fwd.longest_prefix_match(capped->dest);
       if (nexthop) {
          fish_l2.fish_l2_send(l3frame, nexthop, len, 1);
+         return 0;
       } else {
          err_code = htonl(2);
       }
