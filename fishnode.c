@@ -514,6 +514,10 @@ int my_fish_l3_forward(void *l3frame, int len)
    uint32_t err_code;
 
    if (capped->TTL != 0 || my_addr == capped->dest) {
+      if (capped->dest == ALL_NEIGHBORS) {
+         fish_l2.fish_l2_send(l3frame, ALL_NEIGHBORS, len, 1);
+         return 0;
+      }
       fnaddr_t nexthop = fish_fwd.longest_prefix_match(capped->dest);
       if (nexthop) {
          fish_l2.fish_l2_send(l3frame, nexthop, len, 1);
