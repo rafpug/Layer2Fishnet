@@ -63,6 +63,11 @@ struct l3_header {
    fnaddr_t dest;
 } __attribute__((packed));
 
+struct FCMP {
+   uint32_t err_code;
+   uint32_t seq_num;
+};
+
 struct arp_pending *pending_head = NULL;
 struct arp_pending *pending_tail = NULL;
 
@@ -504,6 +509,29 @@ int my_fish_l3_send(void *l4frame, int len, fnaddr_t dst_addr,
 
 int my_fish_l3_forward(void *l3frame, int len)
 {
+   struct l3_header *capped = l3frame;
+   fnaddr_t my_addr = fish_getaddress();
+   uint32_t err_code;
+
+   if (capped->TTL != 0 || my_addr == capped->dest) {
+      fnaddr_t nexthop = fish_fwd.longest_prefix_match(capped->dest);
+      if (nexthop) {
+         fish_l2.fish_l2_send(l3frame, nexthop, len, 1);
+      } else {
+         err_code = htonl(2);
+      }
+   } else {
+      err_code = htonl(1);
+   }
+   
+   if (capped->Protocol == 6 || capped->src == ALL_NEIGHBORS || capped->dest == ALL_NEIGHBORS) {
+      return 0;
+   }
+
+   struct FCMP pkt = {0};
+   pkt.err_code = err_code;
+   pkt.seq_num = htonl(capped->PacketID);
+   fish_l3.fish_l3_send(&pkt, sizeof(pkt), capped->src, 6, MAX_TTL); 
    return 0;
 }
 
@@ -598,7 +626,7 @@ int main(int argc, char **argv)
 
    fish_l3.fishnode_l3_receive = &my_fishnode_l3_receive;
    fish_l3.fish_l3_send = &my_fish_l3_send;
-   //fish_l3.fish_l3_forward = &my_fish_l3_forward;
+   fish_l3.fish_l3_forward = &my_fish_l3_forward;
 /*
    // Set up a callback to broadcast DV advertisement
    fish_scheduleevent(0, &my_timed_event, NULL);
