@@ -452,7 +452,7 @@ int previously_received(fnaddr_t src, uint32_t id) {
    }
    return 0;
 }
-int my_fishnode_l3_receive(void *l3frame, int len)
+int my_fishnode_l3_receive(void *l3frame, int len, uint8_t protocol)
 {
    char new_frame[len];
    memcpy(new_frame, l3frame, len);
