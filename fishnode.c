@@ -9,7 +9,8 @@
 #include <arpa/inet.h>
 #include <time.h>
 
-#define L2_IMPL
+#define DEBUG
+#define L3_IMPL
  
 static int noprompt = 0;
 
@@ -53,6 +54,14 @@ struct arp_pending {
     struct arp_queue *queue_tail;
     struct arp_pending *next;
 };
+
+struct l3_header {
+   uint8_t TTL;
+   uint8_t Protocol;
+   uint32_t PacketID;
+   fnaddr_t src;
+   fnaddr_t dest;
+} __attribute__((packed));
 
 struct arp_pending *pending_head = NULL;
 struct arp_pending *pending_tail = NULL;
@@ -204,7 +213,7 @@ void my_arp_received(void *l2frame)
 
 void my_send_arp_request(fnaddr_t l3addr)
 {
-    char frame[sizeof(struct l2_header) + sizeof(struct arp_header)];
+    char frame[sizeof(struct l2_header) + sizeof(struct arp_header)] = {0};
 
     struct l2_header *l2_cap = (struct l2_header *) frame;
     struct arp_header *arp_cap = (struct arp_header *) (l2_cap + 1);
@@ -282,6 +291,7 @@ void my_add_arp_entry(fn_l2addr_t l2addr, fnaddr_t addr, int timeout)
 void retry_cb(void *ip) {
     struct arp_pending *cur_pending = pending_head;
     struct arp_pending *prev_pending = NULL;
+    //fnaddr_t addr = *(fnaddr_t *)ip;
     fnaddr_t addr = (fnaddr_t)(uintptr_t) ip;
     while (cur_pending != NULL) {
         if (cur_pending->addr == addr) {
@@ -394,16 +404,68 @@ void my_resolve_fnaddr(fnaddr_t addr, arp_resolution_cb cb, void *param)
     pending_tail->queue_head = new_queue;
     pending_tail->queue_tail = new_queue;
 
-    
+    /*fnaddr_t *ip = (fnaddr_t *) malloc(sizeof(fnaddr_t));
+    *ip = addr;*/
     fish_scheduleevent(2500, retry_cb, (void *)(uintptr_t) addr);
     fish_arp.send_arp_request(addr);
     return;
 }
 #endif
 
+struct pktID_table {
+   fnaddr_t src;
+   uint32_t PacketID;
+   struct pktID_table *next;
+};
+
+struct pktID_table *pktID_head = NULL;
+
 #ifdef L3_IMPL
+/* Returns 1 if a packet was previously received, and zero otherwise */
+int previously_received(fnaddr_t src, uint32_t id) {
+
+   if (pktID_head == NULL) {
+      pktID_head = malloc(sizeof(struct pktID_table));
+      if (pktID_head){
+         pktID_head->src = src;
+         pktID_head->PacketID = id;
+      }
+      return 0;
+   }
+
+   struct pktID_table *curr = pktID_head;
+
+   while (curr != NULL) {
+      if (curr->src == src && curr->PacketID == id) {
+         return 1;
+      }
+      if (curr->next == NULL){
+         break;
+      }
+      curr = curr->next; 
+   }
+   
+   curr->next = malloc(sizeof(struct pktID_table));
+   if (curr->next) {
+      curr->next->src = src;
+      curr->next->PacketID = id;
+   }
+   return 0;
+}
 int my_fishnode_l3_receive(void *l3frame, int len)
 {
+   char new_frame[len];
+   memcpy(new_frame, l3frame, len);
+   struct l3_header *cap = (struct l3_header *) new_frame;
+   
+   fnaddr_t myaddress = fish_getaddress();
+   if (myaddress == cap->dest || cap->dest == ALL_NEIGHB) {
+      fish_l4.fish_l4_receive(l3frame+sizeof(cap), len-sizeof(cap),cap->Protocol, cap->src);
+      return 0;
+   } else if (cap->dest == ALL_NEIGHBORS) {
+
+      fish_l4.fish_l4_receive(l3frame+sizeof(cap), len-sizeof(cap),cap->Protocol, cap->src);
+      
    return 0;
 }
 
@@ -506,10 +568,11 @@ int main(int argc, char **argv)
 #endif
 
 #ifdef L3_IMPL
-/*
+
    fish_l3.fishnode_l3_receive = &my_fishnode_l3_receive;
-   fish_l3.fish_l3_send = &my_fish_l3_send;
-   fish_l3.fish_l3_forward = &my_fish_l3_forward;
+   //fish_l3.fish_l3_send = &my_fish_l3_send;
+   //fish_l3.fish_l3_forward = &my_fish_l3_forward;
+/*
    // Set up a callback to broadcast DV advertisement
    fish_scheduleevent(0, &my_timed_event, NULL);
    // Full functionality
@@ -580,6 +643,11 @@ int main(int argc, char **argv)
         void *prev = pending_head;
         pending_head = pending_head->next;
         free(prev);
+   }
+   while (pktID_head != NULL) {
+      void *prev = pktID_head;
+      pktID_head = pktID_head->next;
+      free(prev);
    }
    return 0;
 }
