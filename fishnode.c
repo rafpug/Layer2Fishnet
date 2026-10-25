@@ -459,13 +459,18 @@ int my_fishnode_l3_receive(void *l3frame, int len)
    struct l3_header *cap = (struct l3_header *) new_frame;
    
    fnaddr_t myaddress = fish_getaddress();
-   if (myaddress == cap->dest || cap->dest == ALL_NEIGHB) {
+   if (myaddress == cap->dest) {
       fish_l4.fish_l4_receive(l3frame+sizeof(cap), len-sizeof(cap),cap->Protocol, cap->src);
       return 0;
    } else if (cap->dest == ALL_NEIGHBORS) {
-
+      if (previously_received(cap->src, cap->PacketID)) {
+         /* Drop frame if previously received */
+         return 0;
+      }
       fish_l4.fish_l4_receive(l3frame+sizeof(cap), len-sizeof(cap),cap->Protocol, cap->src);
-      
+   }
+   cap->TTL -= 1;
+   fish_l3.fish_l3_forward(new_frame, len);
    return 0;
 }
 
