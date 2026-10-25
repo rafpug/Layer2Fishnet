@@ -480,6 +480,25 @@ int my_fishnode_l3_receive(void *l3frame, int len, uint8_t protocol)
 int my_fish_l3_send(void *l4frame, int len, fnaddr_t dst_addr,
                uint8_t proto, uint8_t ttl)
 {
+   void *newFrame = malloc(len + sizeof(struct l3_header));
+   if (newFrame == NULL) {
+      return 0;
+   }
+   struct l3_header *capped = newFrame;
+   memcpy(capped+1, l4frame, len);
+   
+   if (ttl <= 0 || ttl > MAX_TTL) {
+      capped->TTL = MAX_TTL;
+   } else {
+      capped->TTL = ttl;
+   }
+
+   capped->Protocol = proto;
+   capped->PacketID = fish_next_pktid();
+   capped->src = fish_getaddress();
+   capped->dest = dst_addr;
+   fish_l3.fish_l3_forward(capped, len + sizeof(struct l3_header));
+   free(capped);
    return 0;
 }
 
@@ -578,7 +597,7 @@ int main(int argc, char **argv)
 #ifdef L3_IMPL
 
    fish_l3.fishnode_l3_receive = &my_fishnode_l3_receive;
-   //fish_l3.fish_l3_send = &my_fish_l3_send;
+   fish_l3.fish_l3_send = &my_fish_l3_send;
    //fish_l3.fish_l3_forward = &my_fish_l3_forward;
 /*
    // Set up a callback to broadcast DV advertisement
