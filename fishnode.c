@@ -429,6 +429,7 @@ int previously_received(fnaddr_t src, uint32_t id) {
       if (pktID_head){
          pktID_head->src = src;
          pktID_head->PacketID = id;
+         pktID_head->next = NULL;
       }
       return 0;
    }
@@ -449,9 +450,11 @@ int previously_received(fnaddr_t src, uint32_t id) {
    if (curr->next) {
       curr->next->src = src;
       curr->next->PacketID = id;
+      curr->next->next = NULL;
    }
    return 0;
 }
+
 int my_fishnode_l3_receive(void *l3frame, int len, uint8_t protocol)
 {
    char new_frame[len];
