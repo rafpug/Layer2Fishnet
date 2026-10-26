@@ -68,11 +68,24 @@ struct FCMP {
    uint32_t seq_num;
 };
 
+struct fw_entry {
+   fnaddr_t dst;
+   int prefix;
+   fnaddr_t next_hop;
+   int metric;
+   char type;
+   void *user_data;
+   struct fw_entry *prev;
+   struct fw_entry *next;
+}
+
 struct arp_pending *pending_head = NULL;
 struct arp_pending *pending_tail = NULL;
 
 struct arp_entry *cache_head = NULL;
 struct arp_entry *cache_tail = NULL;
+
+struct fw_entry fw_head = NULL;
 
 static int print_route(void *callback_data __attribute__((unused)),
       fnaddr_t dest, int prefix_len __attribute((unused)),
@@ -549,21 +562,53 @@ void my_timed_event(void*)
 void* my_add_fwtable_entry(fnaddr_t dst, int prefix_length, fnaddr_t next_hop,
                    int metric, char type, void *user_data)
 {
-   return NULL;
+   struct fw_entry *new = calloc(sizeof(struct fw_entry), 1);
+   if (new == NULL) {
+      return NULL;
+   }
+   new->dst = dst;
+   new->prefix = prefix_length;
+   new->next_hop = next_hop;
+   new->metric = metric;
+   new->type = type;
+   new->user_data = user_data;
+   new->next = fw_head;
+   
+   if (fw_head != NULL) {
+      fw_head->prev = new;
+   }
+   fw_head = new;
+   return new;
 }
 
 void* my_remove_fwtable_entry(void *route_key)
 {
-   return NULL;
+   struct fw_entry *old = route_key;
+   void *user_data = old->user_data;
+   if (old->next) {
+      old->next->prev = old->prev;
+   }
+   if (old->prev) {
+      old->prev->next = old->next;
+   }
+   if (old == fw_head) {
+      fw_head = old->next;
+   }
+   free(old);
+   return user_data;
 }
 
 int my_update_fwtable_metric(void *route_key, int new_metric)
 {
-   return 0;
+   struct fw_entry *old = route_key;
+   int old_metric = old->metric;
+   old->metric = new_metric;
+   return old_metric;
 }
 
 fnaddr_t my_longest_prefix_match(fnaddr_t addr)
 {
+   
    return 0;
 }
 #endif
@@ -632,16 +677,14 @@ int main(int argc, char **argv)
    fish_l3.fishnode_l3_receive = &my_fishnode_l3_receive;
    fish_l3.fish_l3_send = &my_fish_l3_send;
    fish_l3.fish_l3_forward = &my_fish_l3_forward;
-/*
+
    // Set up a callback to broadcast DV advertisement
-   fish_scheduleevent(0, &my_timed_event, NULL);
-   // Full functionality
-   fish_scheduleevent(0, &my_timed_event, NULL);
+   //fish_scheduleevent(0, &my_timed_event, NULL);
    // Full functionality
    fish_fwd.add_fwtable_entry = &my_add_fwtable_entry;
    fish_fwd.remove_fwtable_entry = &my_remove_fwtable_entry;
    fish_fwd.update_fwtable_metric = &my_update_fwtable_metric;
-   fish_fwd.longest_prefix_match = &my_longest_prefix_match;*/
+   fish_fwd.longest_prefix_match = &my_longest_prefix_match;
 #endif
 
 #if 1
