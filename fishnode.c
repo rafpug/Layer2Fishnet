@@ -77,7 +77,7 @@ struct fw_entry {
    void *user_data;
    struct fw_entry *prev;
    struct fw_entry *next;
-}
+};
 
 struct arp_pending *pending_head = NULL;
 struct arp_pending *pending_tail = NULL;
@@ -85,7 +85,7 @@ struct arp_pending *pending_tail = NULL;
 struct arp_entry *cache_head = NULL;
 struct arp_entry *cache_tail = NULL;
 
-struct fw_entry fw_head = NULL;
+struct fw_entry *fw_head = NULL;
 
 static int print_route(void *callback_data __attribute__((unused)),
       fnaddr_t dest, int prefix_len __attribute((unused)),
@@ -606,10 +606,55 @@ int my_update_fwtable_metric(void *route_key, int new_metric)
    return old_metric;
 }
 
+fnaddr_t mask_from_prefix(int prefix) {
+   fnaddr_t mask = 0;
+   for (int i = 0; i < prefix; i++) {
+      mask++;
+      mask = mask << 1;
+   }
+   
+   for (int i = 0; i < 32 - prefix; i++) {
+      mask = mask << 1;
+   }
+   return mask;
+}
+
 fnaddr_t my_longest_prefix_match(fnaddr_t addr)
 {
-   
-   return 0;
+
+   fnaddr_t best_hop = 0;
+   int best_metric = 0;
+   int longest_prefix = 0;
+   struct fw_entry *curr = fw_head;
+
+   if (curr == NULL) {
+      return 0;
+   } else {
+      best_hop = curr->next_hop;
+      best_metric = curr->metric;
+      longest_prefix = curr->prefix;
+      curr = curr->next;
+   }
+
+   while (curr != NULL) {
+      fnaddr_t mask = mask_from_prefix(curr->prefix);
+      fnaddr_t masked_addr = mask & addr;
+      fnaddr_t masked_dest = curr->dst & mask;
+      if (masked_addr == masked_dest) {
+         if (curr->prefix > longest_prefix) {
+            best_hop = curr->next_hop;
+            best_metric = curr->metric;
+            longest_prefix = curr->prefix;
+         } else if (curr->prefix == longest_prefix) {
+            if (curr->metric < best_metric) {
+               best_hop = curr->next_hop;
+               best_metric = curr->metric;
+            }
+         }
+      }
+      curr = curr->next;
+   }
+   return best_hop;
 }
 #endif
 
@@ -750,6 +795,11 @@ int main(int argc, char **argv)
    while (pktID_head != NULL) {
       void *prev = pktID_head;
       pktID_head = pktID_head->next;
+      free(prev);
+   }
+   while (fw_head != NULL) {
+      void *prev = fw_head;
+      fw_head = fw_head->next;
       free(prev);
    }
    return 0;
