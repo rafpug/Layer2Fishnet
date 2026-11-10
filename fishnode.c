@@ -474,7 +474,14 @@ int previously_received(fnaddr_t src, uint32_t id) {
 }
 
 int my_fishnode_l3_receive(void *l3frame, int len, uint8_t protocol)
-{ 
+{
+   if (protocol != 1 || protocol != 4){
+      return 0;
+   }
+
+   //if (protocol == 4) {
+   //}
+ 
    char new_frame[len];
    memcpy(new_frame, l3frame, len);
    struct l3_header *cap = (struct l3_header *) new_frame;
@@ -488,7 +495,7 @@ int my_fishnode_l3_receive(void *l3frame, int len, uint8_t protocol)
          /* Drop frame if previously received */
          return 0;
       }
-      fish_l4.fish_l4_receive(cap+1, len-sizeof(cap),cap->Protocol, cap->src);
+      fish_l4.fish_l4_receive(cap+1, len-sizeof(struct l3_header),cap->Protocol, cap->src);
    }
    if (cap != 0) {
       cap->TTL -= 1;
