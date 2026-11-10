@@ -475,7 +475,7 @@ int previously_received(fnaddr_t src, uint32_t id) {
 
 int my_fishnode_l3_receive(void *l3frame, int len, uint8_t protocol)
 {
-   if (protocol != 1 || protocol != 4){
+   if (protocol != 1){
       return 0;
    }
 
