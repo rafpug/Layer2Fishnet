@@ -524,6 +524,11 @@ int my_fish_l3_send(void *l4frame, int len, fnaddr_t dst_addr,
    capped->PacketID = fish_next_pktid();
    capped->src = fish_getaddress();
    capped->dest = dst_addr;
+
+   if (capped->dest == ALL_NEIGHBORS) {
+      previously_received(capped->src, capped->PacketID);
+   }
+
    fish_l3.fish_l3_forward(capped, len + sizeof(struct l3_header));
    free(capped);
    return 0;
