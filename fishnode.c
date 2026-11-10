@@ -474,7 +474,7 @@ int previously_received(fnaddr_t src, uint32_t id) {
 }
 
 int my_fishnode_l3_receive(void *l3frame, int len, uint8_t protocol)
-{
+{ 
    char new_frame[len];
    memcpy(new_frame, l3frame, len);
    struct l3_header *cap = (struct l3_header *) new_frame;
@@ -488,9 +488,11 @@ int my_fishnode_l3_receive(void *l3frame, int len, uint8_t protocol)
          /* Drop frame if previously received */
          return 0;
       }
-      fish_l4.fish_l4_receive(l3frame+sizeof(cap), len-sizeof(cap),cap->Protocol, cap->src);
+      fish_l4.fish_l4_receive(cap+1, len-sizeof(cap),cap->Protocol, cap->src);
    }
-   cap->TTL -= 1;
+   if (cap != 0) {
+      cap->TTL -= 1;
+   }
    fish_l3.fish_l3_forward(new_frame, len);
    return 0;
 }
@@ -545,11 +547,12 @@ int my_fish_l3_forward(void *l3frame, int len)
    if (capped->Protocol == 6 || capped->src == ALL_NEIGHBORS || capped->dest == ALL_NEIGHBORS) {
       return 0;
    }
-
+   fish_fcmp.send_fcmp_response(l3frame, len, err_code);
+   /*
    struct FCMP pkt = {0};
    pkt.err_code = err_code;
    pkt.seq_num = htonl(capped->PacketID);
-   fish_l3.fish_l3_send(&pkt, sizeof(pkt), capped->src, 6, MAX_TTL); 
+   fish_l3.fish_l3_send(&pkt, sizeof(pkt), capped->src, 6, MAX_TTL); */
    return 0;
 }
 
