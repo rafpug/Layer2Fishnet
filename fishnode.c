@@ -79,6 +79,29 @@ struct fw_entry {
    struct fw_entry *next;
 };
 
+struct route {
+   fnaddr_t dst;
+   uint32_t netmask;
+   uint32_t metric;
+} __attribute__((packed));
+
+struct dv_advertisement {
+   fnaddr_t src;
+   uint16_t advert_num;
+   struct route *routes;
+};
+
+struct dv_entry {
+   fnaddr_t dst;
+   uint32_t mask;
+   fnaddr_t next_hop;
+   int metric;
+   time_t last_seen;
+   void *fw_key;
+   struct dv_entry *prev;
+   struct dv_entry *next;
+};
+
 struct arp_pending *pending_head = NULL;
 struct arp_pending *pending_tail = NULL;
 
@@ -86,7 +109,7 @@ struct arp_entry *cache_head = NULL;
 struct arp_entry *cache_tail = NULL;
 
 struct fw_entry *fw_head = NULL;
-
+struct dv_entry *dv_head = NULL;
 static int print_route(void *callback_data __attribute__((unused)),
       fnaddr_t dest, int prefix_len __attribute((unused)),
       fnaddr_t net_hop __attribute((unused)),
@@ -568,11 +591,51 @@ int my_fish_l3_forward(void *l3frame, int len)
    return 0;
 }
 
+fnaddr_t mask_from_prefix(int prefix) {
+   fnaddr_t mask = 0;
+   for (int i = 0; i < prefix; i++) {
+      mask++;
+      mask = mask << 1;
+   }
+
+   for (int i = 0; i < 32 - prefix; i++) {
+      mask = mask << 1;
+   }
+   return mask;
+}
+
 // Callback to broadcast DV advertisement
 void my_timed_event(void*)
 {
+   size_t max_size = MTU - sizeof(struct l2_header);
+   size_t DV_header_size = sizeof(fnaddr_t) + sizeof(uint16_t);
+
+   char DV_packet[max_size] = {0};
+   struct dv_advertisement *advert = (struct dv_advertisement *) DV_packet;
+
+   advert->src = fish_getaddress();
+   
+   int route_num = 0;
+   struct fw_entry *curr = fw_head;
+   while (curr != NULL){
+      if (max_size < DV_header_size + sizeof(route) * (route_num + 1)) {
+         break;
+      }
+      advert->routes[route_num].dst = curr->dst;
+      advert->routes[route_num].netmask = htonl(mask_from_prefix(curr->prefix)); 
+      advert->routes[route_num].metric = htonl(curr->metric);
+      route_num++;
+      curr = curr->next;
+   }
+   
+   int len = DV_header_size + sizeof(route) * (route_num);
+   fish_l2.fish_l2_send(advert, ALL_NEIGHBORS, len, 1);
+   return;
 }
 
+void receive_DV(void *l3frame, int len) {
+   struct dv_advertisement *advert = l3frame;
+   
 // Full functionality
 void* my_add_fwtable_entry(fnaddr_t dst, int prefix_length, fnaddr_t next_hop,
                    int metric, char type, void *user_data)
@@ -619,19 +682,6 @@ int my_update_fwtable_metric(void *route_key, int new_metric)
    int old_metric = old->metric;
    old->metric = new_metric;
    return old_metric;
-}
-
-fnaddr_t mask_from_prefix(int prefix) {
-   fnaddr_t mask = 0;
-   for (int i = 0; i < prefix; i++) {
-      mask++;
-      mask = mask << 1;
-   }
-   
-   for (int i = 0; i < 32 - prefix; i++) {
-      mask = mask << 1;
-   }
-   return mask;
 }
 
 fnaddr_t my_longest_prefix_match(fnaddr_t addr)
