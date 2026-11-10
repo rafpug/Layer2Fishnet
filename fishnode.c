@@ -545,10 +545,10 @@ int my_fish_l3_forward(void *l3frame, int len)
          fish_l2.fish_l2_send(l3frame, nexthop, len, 1);
          return 0;
       } else {
-         err_code = htonl(2);
+         err_code = 2;
       }
    } else {
-      err_code = htonl(1);
+      err_code = 1;
    }
    
    if (capped->Protocol == 6 || capped->src == ALL_NEIGHBORS || capped->dest == ALL_NEIGHBORS) {
