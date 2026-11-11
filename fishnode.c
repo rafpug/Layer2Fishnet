@@ -649,6 +649,8 @@ void my_timed_event(void*)
    advert->advert_num = htons(route_num); 
    int len = DV_header_size + sizeof(struct route) * (route_num);
    fish_l2.fish_l2_send(advert, ALL_NEIGHBORS, len, 4);
+   
+   fish_scheduleevent(30000, my_timed_event, NULL);
    return;
 }
 
@@ -811,7 +813,7 @@ void receive_DV(void *l3frame, int len) {
    }
    
    for (int i = 0; i < route_num; i++) {
-      if (advert->routes[i].dst == fish_getaddress()) {
+      if (advert->routes[i].dst == fish_getaddress() || ntohl(advert->routes[i].metric) >= MAX_TTL) {
          continue;
       }
       cur = dv_head;
@@ -917,7 +919,7 @@ int main(int argc, char **argv)
    fish_l3.fish_l3_forward = &my_fish_l3_forward;
 
    // Set up a callback to broadcast DV advertisement
-   //fish_scheduleevent(0, &my_timed_event, NULL);
+   fish_scheduleevent(0, &my_timed_event, NULL);
    // Full functionality
    fish_fwd.add_fwtable_entry = &my_add_fwtable_entry;
    fish_fwd.remove_fwtable_entry = &my_remove_fwtable_entry;
@@ -925,7 +927,7 @@ int main(int argc, char **argv)
    fish_fwd.longest_prefix_match = &my_longest_prefix_match;
 #endif
 
-#if 1
+#if 0
    /* Enable the built-in neighbor protocol implementation.  This will discover
     * one-hop routes in your fishnet.  The link-state routing protocol requires
     * the neighbor protocol to be working, whereas it is redundant with DV.
