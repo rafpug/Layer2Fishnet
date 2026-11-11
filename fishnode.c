@@ -11,7 +11,8 @@
 
 #define DEBUG
 #define L3_IMPL
- 
+
+#define MAX_DV_SZE (MTU - sizeof(struct l2_header)) 
 static int noprompt = 0;
 
 struct l2_header {
@@ -496,6 +497,8 @@ int previously_received(fnaddr_t src, uint32_t id) {
    return 0;
 }
 
+void receive_DV(void *l3frame, int len);
+
 int my_fishnode_l3_receive(void *l3frame, int len, uint8_t protocol)
 {
    if (protocol == 4) {
@@ -627,7 +630,7 @@ void my_timed_event(void*)
    size_t max_size = MTU - sizeof(struct l2_header);
    size_t DV_header_size = sizeof(fnaddr_t) + sizeof(uint16_t);
 
-   char DV_packet[max_size] = {0};
+   char DV_packet[MAX_DV] = {0};
    struct dv_advertisement *advert = (struct dv_advertisement *) DV_packet;
 
    advert->src = fish_getaddress();
@@ -745,9 +748,9 @@ struct dv_entry *add_DV(fnaddr_t next_hop, fnaddr_t dst, uint32_t netmask, uint3
    new->dst = dst;
    new->mask = ntohl(netmask);
    new->next_hop = next_hop;
-   new->metric = ntohl(metric);
+   new->metric = ntohl(metric) + 1;
    new->last_seen = time(NULL);
-   void *key = fish_fwd.add_fwtable_entry(dst, prefix_from_mask(ntohl(netmask)), next_hop, ntohl(metric), FISH_FWD_TYPE_DV, NULL);
+   void *key = fish_fwd.add_fwtable_entry(dst, prefix_from_mask(ntohl(netmask)), next_hop, ntohl(metric) + 1, FISH_FWD_TYPE_DV, NULL);
    new->fw_key = key;
    return new;
 }
@@ -759,7 +762,7 @@ void receive_DV(void *l3frame, int len) {
    
    if (dv_head == NULL) {
       
-      dv_head = add_DV(advert->src, advert->src, 0xFFFFFFFF, 1);
+      dv_head = add_DV(advert->src, advert->src, 0xFFFFFFFF, 0);
       struct dv_entry *prev = dv_head;
       for (int i = 0; i < advert->advert_num; i++) {
          cur = add_DV(advert->src, advert->routes[i].dst, advert->routes[i].netmask, advert->routes[i].metric);
@@ -770,6 +773,7 @@ void receive_DV(void *l3frame, int len) {
       return;
    }
    
+   struct dv_entry *prev = NULL;
    while (cur != NULL) {
       if (time(NULL) - cur->last_seen > 180) {
          fish_fwd.remove_fwtable_entry(cur->fw_key);
@@ -785,9 +789,47 @@ void receive_DV(void *l3frame, int len) {
       if (cur->dst == advert->src && cur->mask == 0xFFFFFFFF) {
          if (cur->metric != 1) {
             fish_fwd.update_fwtable_metric(cur->fw_key, 1);
+            cur->metric = 1;
          }
+         break;
       }
-    
+      prev = cur;
+      cur = cur->next;
+   }
+   if (cur == NULL) {
+      void *new_entry = add_DV(advert->src, advert->src, 0xFFFFFFFF, 0);
+      prev->next = new_entry;
+      new_entry->prev = prev;
+   }
+   
+   for (int i = 0; i < advert->advert_num; i++) {
+      if (advert->routes[i].dst == fish_getaddress()) {
+         continue;
+      }
+      cur = dv_head;
+      prev = NULL;
+      while (cur != NULL) {
+         if (cur->dst == advert->routes[i].dst && cur->mask == ntohl(advert->routes[i].netmask)) {
+            int advertised_metric = ntohl(advert->routes[i].metric) + 1;
+            if (cur->next_hop == advert->src && cur->metric != advertised_metric) {
+               fish_fwd.update_fwtable_metric(cur->fw_key, advertised_metric);
+               cur->metric = advertised_metric;
+            } else if (cur->metric > advertised_metric) {
+               fish_fwd.update_fwtable_metric(cur->fw_key, advertised_metric);
+               cur->metric = advertised_metric;
+            }
+            break;
+         }
+         prev = cur;
+         cur = cur->next;
+      }
+      if (curr == NULL) {
+         void *new_entry = add_DV(advert->src, advert->routes[i].dst, advert->routes[i].netmask, advert-routes[i].metric);
+         prev->next = new_entry;
+         new_entry->prev = prev;
+      }
+   }
+}
 #endif
 
 int main(int argc, char **argv)
