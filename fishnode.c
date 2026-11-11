@@ -808,9 +808,15 @@ void receive_DV(void *l3frame, int len) {
       dv_head = add_DV(advert->src, advert->src, 0xFFFFFFFF, 0);
       struct dv_entry *prev = dv_head;
       for (int i = 0; i < route_num; i++) {
-         if (advert->routes[i].dst != fish_getaddress() && ntohl(advert->routes[i].metric) < MAX_TTL) {
-            cur = add_DV(advert->src, advert->routes[i].dst, advert->routes[i].netmask, advert->routes[i].metric);
+         if (advert->routes[i].dst == fish_getaddress() ||
+            ntohl(advert->routes[i].metric) >= MAX_TTL) {
+            continue;
          }
+
+         cur = add_DV(advert->src, advert->routes[i].dst,
+                 advert->routes[i].netmask,
+                 advert->routes[i].metric);
+
          prev->next = cur;
          cur->prev = prev;
          prev = cur;
