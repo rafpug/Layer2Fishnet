@@ -694,8 +694,9 @@ void my_cleanup(void *) {
          void *prev2 = curr;
          curr = curr->next;
          free(prev2);
+      } else {
+         curr = curr->next;
       }
-      curr = curr->next;
    }
    fish_scheduleevent(1000, &my_cleanup, NULL);
 }
