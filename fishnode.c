@@ -12,7 +12,8 @@
 #define DEBUG
 #define L3_IMPL
 
-#define MAX_DV_SIZE (MTU - sizeof(struct l2_header)) 
+#define MAX_DV_SIZE (MTU - sizeof(struct l2_header))
+#define MAX_DV_ROUTES 123 
 static int noprompt = 0;
 
 struct l2_header {
@@ -89,7 +90,7 @@ struct route {
 struct dv_advertisement {
    fnaddr_t src;
    uint16_t advert_num;
-   struct route *routes;
+   struct route routes[MAX_DV_ROUTES];
 };
 
 struct dv_entry {
