@@ -649,7 +649,7 @@ void my_timed_event(void*)
    }
    
    int len = DV_header_size + sizeof(struct route) * (route_num);
-   fish_l2.fish_l2_send(advert, ALL_NEIGHBORS, len, 1);
+   fish_l2.fish_l2_send(advert, ALL_NEIGHBORS, len, 4);
    return;
 }
 
