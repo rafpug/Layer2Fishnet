@@ -640,6 +640,24 @@ void my_timed_event(void*)
       if (max_size < DV_header_size + sizeof(struct route) * (route_num + 1)) {
          break;
       }
+
+      if (time(NULL) - curr->last_seen > 180) {
+         fish_fwd.remove_fwtable_entry(curr->fw_key);
+         if (curr == dv_head) {
+            dv_head = curr->next;
+         } else {
+            curr->prev->next = curr->next;
+         }
+         
+         if (curr->next) {
+            curr->next->prev = curr->prev;
+         }
+         void *prev2 = curr;
+         curr = curr->next;
+         free(prev2);
+         continue;
+      }
+
       advert->routes[route_num].dst = curr->dst;
       advert->routes[route_num].netmask = htonl(curr->mask); 
       advert->routes[route_num].metric = htonl(curr->metric);
