@@ -91,7 +91,7 @@ struct dv_advertisement {
    fnaddr_t src;
    uint16_t advert_num;
    struct route routes[MAX_DV_ROUTES];
-};
+} __attribute__((packed));
 
 struct dv_entry {
    fnaddr_t dst;
@@ -596,17 +596,15 @@ int my_fish_l3_forward(void *l3frame, int len)
    return 0;
 }
 
-fnaddr_t mask_from_prefix(int prefix) {
-   fnaddr_t mask = 0;
-   for (int i = 0; i < prefix; i++) {
-      mask++;
-      mask = mask << 1;
-   }
+fnaddr_t mask_from_prefix(int prefix)
+{
+    if (prefix < 0 || prefix > 32)
+        return 0;
 
-   for (int i = 0; i < 32 - prefix; i++) {
-      mask = mask << 1;
-   }
-   return mask;
+    uint32_t mask =
+        prefix == 0 ? 0 : 0xFFFFFFFFu << (32 - prefix);
+
+    return mask;
 }
 
 int prefix_from_mask(uint32_t mask)
@@ -648,7 +646,7 @@ void my_timed_event(void*)
       route_num++;
       curr = curr->next;
    }
-   
+   advert->advert_num = htons(route_num); 
    int len = DV_header_size + sizeof(struct route) * (route_num);
    fish_l2.fish_l2_send(advert, ALL_NEIGHBORS, len, 4);
    return;
