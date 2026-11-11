@@ -676,6 +676,30 @@ void my_timed_event(void*)
    return;
 }
 
+void my_cleanup(void *) {
+   struct dv_entry *curr = dv_head;
+    while (curr != NULL){
+
+      if (time(NULL) - curr->last_seen >= 180) {
+         fish_fwd.remove_fwtable_entry(curr->fw_key);
+         if (curr == dv_head) {
+            dv_head = curr->next;
+         } else {
+            curr->prev->next = curr->next;
+         }
+
+         if (curr->next) {
+            curr->next->prev = curr->prev;
+         }
+         void *prev2 = curr;
+         curr = curr->next;
+         free(prev2);
+      }
+      curr = curr->next;
+   }
+   fish_scheduleevent(1000, &my_cleanup, NULL);
+}
+
 // Full functionality
 void* my_add_fwtable_entry(fnaddr_t dst, int prefix_length, fnaddr_t next_hop,
                    int metric, char type, void *user_data)
@@ -793,7 +817,7 @@ void receive_DV(void *l3frame, int len) {
    
    struct dv_entry *prev = NULL;
    while (cur != NULL) {
-      if (time(NULL) - cur->last_seen > 180) {
+      if (time(NULL) - cur->last_seen >= 180) {
          fish_fwd.remove_fwtable_entry(cur->fw_key);
          if (cur == dv_head) {
             dv_head = cur->next;
@@ -942,6 +966,7 @@ int main(int argc, char **argv)
 
    // Set up a callback to broadcast DV advertisement
    fish_scheduleevent(0, &my_timed_event, NULL);
+   fish_scheduleevent(0, &my_cleanup, NULL);
    // Full functionality
    fish_fwd.add_fwtable_entry = &my_add_fwtable_entry;
    fish_fwd.remove_fwtable_entry = &my_remove_fwtable_entry;
