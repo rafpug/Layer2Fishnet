@@ -783,13 +783,20 @@ void receive_DV(void *l3frame, int len) {
             cur->prev->next = cur->next;
          }
          cur->next->prev = cur->prev;
-         free(cur);
+         void *prev2 = cur;
+         cur = cur->next;
+         free(prev2);
+         continue;
       }
       
       if (cur->dst == advert->src && cur->mask == 0xFFFFFFFF) {
          if (cur->metric != 1) {
-            fish_fwd.update_fwtable_metric(cur->fw_key, 1);
+            fish_fwd.remove_fwtable_entry(cur->fw_key);
+            void *key = fish_fwd.add_fwtable_entry(advert->src, 32, advert->src, 1, FISH_FWD_TYPE_DV, NULL);
             cur->metric = 1;
+            cur->fw_key = key;
+            cur->next_hop = advert->src;
+            cur->last_seen = time(NULL);
          }
          break;
       }
@@ -811,12 +818,19 @@ void receive_DV(void *l3frame, int len) {
       while (cur != NULL) {
          if (cur->dst == advert->routes[i].dst && cur->mask == ntohl(advert->routes[i].netmask)) {
             int advertised_metric = ntohl(advert->routes[i].metric) + 1;
-            if (cur->next_hop == advert->src && cur->metric != advertised_metric) {
-               fish_fwd.update_fwtable_metric(cur->fw_key, advertised_metric);
-               cur->metric = advertised_metric;
+            if (cur->next_hop == advert->src) {
+               if (cur->metric != advertised_metric) {
+                  fish_fwd.update_fwtable_metric(cur->fw_key, advertised_metric);
+                  cur->metric = advertised_metric;
+               }
+               cur->last_seen = time(NULL);
             } else if (cur->metric > advertised_metric) {
-               fish_fwd.update_fwtable_metric(cur->fw_key, advertised_metric);
+               fish_fwd.remove_fwtable_entry(cur->fw_key);
+               void *key = fish_fwd.add_fwtable_entry(advert->routes[i].dst, prefix_from_mask(ntohl(advert->routes[i].netmask)), advert->src, advertised_metric, FISH_FWD_TYPE_DV, NULL);
                cur->metric = advertised_metric;
+               cur->fw_key = key;
+               cur->next_hop = advert->src;
+               cur->last_seen = time(NULL);
             }
             break;
          }
