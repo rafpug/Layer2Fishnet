@@ -802,8 +802,12 @@ void receive_DV(void *l3frame, int len) {
    }
    if (cur == NULL) {
       struct dv_entry *new_entry = add_DV(advert->src, advert->src, 0xFFFFFFFF, 0);
-      prev->next = new_entry;
-      new_entry->prev = prev;
+      if (prev == NULL) {
+         dv_head = new_entry;
+      } else {
+         prev->next = new_entry;
+         new_entry->prev = prev;
+      }
    }
    
    for (int i = 0; i < route_num; i++) {
@@ -836,8 +840,12 @@ void receive_DV(void *l3frame, int len) {
       }
       if (cur == NULL) {
          struct dv_entry *new_entry = add_DV(advert->src, advert->routes[i].dst, advert->routes[i].netmask, advert->routes[i].metric);
-         prev->next = new_entry;
-         new_entry->prev = prev;
+         if (prev == NULL) {
+            dv_head = new_entry;
+         } else {
+            prev->next = new_entry;
+            new_entry->prev = prev;
+         }
       }
    }
 }
