@@ -635,13 +635,13 @@ void my_timed_event(void*)
    advert->src = fish_getaddress();
    
    int route_num = 0;
-   struct fw_entry *curr = fw_head;
+   struct dv_entry *curr = dv_head;
    while (curr != NULL){
       if (max_size < DV_header_size + sizeof(struct route) * (route_num + 1)) {
          break;
       }
       advert->routes[route_num].dst = curr->dst;
-      advert->routes[route_num].netmask = htonl(mask_from_prefix(curr->prefix)); 
+      advert->routes[route_num].netmask = htonl(curr->mask); 
       advert->routes[route_num].metric = htonl(curr->metric);
       route_num++;
       curr = curr->next;
