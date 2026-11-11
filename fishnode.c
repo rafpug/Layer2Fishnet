@@ -758,12 +758,13 @@ struct dv_entry *add_DV(fnaddr_t next_hop, fnaddr_t dst, uint32_t netmask, uint3
 void receive_DV(void *l3frame, int len) {
    struct dv_advertisement *advert = l3frame;
    struct dv_entry *cur = dv_head;
+   uint16_t route_num = ntohs(advert->advert_num);
    
    if (dv_head == NULL) {
       
       dv_head = add_DV(advert->src, advert->src, 0xFFFFFFFF, 0);
       struct dv_entry *prev = dv_head;
-      for (int i = 0; i < advert->advert_num; i++) {
+      for (int i = 0; i < route_num; i++) {
          cur = add_DV(advert->src, advert->routes[i].dst, advert->routes[i].netmask, advert->routes[i].metric);
          prev->next = cur;
          cur->prev = prev;
@@ -801,7 +802,7 @@ void receive_DV(void *l3frame, int len) {
       new_entry->prev = prev;
    }
    
-   for (int i = 0; i < advert->advert_num; i++) {
+   for (int i = 0; i < route_num; i++) {
       if (advert->routes[i].dst == fish_getaddress()) {
          continue;
       }
