@@ -12,7 +12,7 @@
 #define DEBUG
 #define L3_IMPL
 
-#define MAX_DV_SZE (MTU - sizeof(struct l2_header)) 
+#define MAX_DV_SIZE (MTU - sizeof(struct l2_header)) 
 static int noprompt = 0;
 
 struct l2_header {
@@ -630,7 +630,7 @@ void my_timed_event(void*)
    size_t max_size = MTU - sizeof(struct l2_header);
    size_t DV_header_size = sizeof(fnaddr_t) + sizeof(uint16_t);
 
-   char DV_packet[MAX_DV] = {0};
+   char DV_packet[MAX_DV_SIZE] = {0};
    struct dv_advertisement *advert = (struct dv_advertisement *) DV_packet;
 
    advert->src = fish_getaddress();
@@ -638,7 +638,7 @@ void my_timed_event(void*)
    int route_num = 0;
    struct fw_entry *curr = fw_head;
    while (curr != NULL){
-      if (max_size < DV_header_size + sizeof(route) * (route_num + 1)) {
+      if (max_size < DV_header_size + sizeof(struct route) * (route_num + 1)) {
          break;
       }
       advert->routes[route_num].dst = curr->dst;
@@ -648,7 +648,7 @@ void my_timed_event(void*)
       curr = curr->next;
    }
    
-   int len = DV_header_size + sizeof(route) * (route_num);
+   int len = DV_header_size + sizeof(struct route) * (route_num);
    fish_l2.fish_l2_send(advert, ALL_NEIGHBORS, len, 1);
    return;
 }
@@ -757,7 +757,6 @@ struct dv_entry *add_DV(fnaddr_t next_hop, fnaddr_t dst, uint32_t netmask, uint3
 
 void receive_DV(void *l3frame, int len) {
    struct dv_advertisement *advert = l3frame;
-   int cur_route = 0;
    struct dv_entry *cur = dv_head;
    
    if (dv_head == NULL) {
@@ -797,7 +796,7 @@ void receive_DV(void *l3frame, int len) {
       cur = cur->next;
    }
    if (cur == NULL) {
-      void *new_entry = add_DV(advert->src, advert->src, 0xFFFFFFFF, 0);
+      struct dv_entry *new_entry = add_DV(advert->src, advert->src, 0xFFFFFFFF, 0);
       prev->next = new_entry;
       new_entry->prev = prev;
    }
@@ -823,8 +822,8 @@ void receive_DV(void *l3frame, int len) {
          prev = cur;
          cur = cur->next;
       }
-      if (curr == NULL) {
-         void *new_entry = add_DV(advert->src, advert->routes[i].dst, advert->routes[i].netmask, advert-routes[i].metric);
+      if (cur == NULL) {
+         struct dv_entry *new_entry = add_DV(advert->src, advert->routes[i].dst, advert->routes[i].netmask, advert->routes[i].metric);
          prev->next = new_entry;
          new_entry->prev = prev;
       }
