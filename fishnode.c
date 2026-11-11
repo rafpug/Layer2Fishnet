@@ -638,10 +638,13 @@ void my_timed_event(void*)
    struct dv_entry *curr = dv_head;
    while (curr != NULL){
       if (max_size < DV_header_size + sizeof(struct route) * (route_num + 1)) {
-         break;
+         advert->advert_num = htons(route_num);
+         int len = DV_header_size + sizeof(struct route) * route_num;
+         fish_l2.fish_l2_send(advert, ALL_NEIGHBORS, len, 4);
+         route_num = 0;
       }
 
-      if (time(NULL) - curr->last_seen > 180) {
+      if (time(NULL) - curr->last_seen >= 180) {
          fish_fwd.remove_fwtable_entry(curr->fw_key);
          if (curr == dv_head) {
             dv_head = curr->next;
