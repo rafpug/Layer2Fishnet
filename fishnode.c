@@ -704,21 +704,16 @@ fnaddr_t my_longest_prefix_match(fnaddr_t addr)
 {
 
    fnaddr_t best_hop = 0;
-   int best_metric = 0;
+   int best_metric = MAX_TTL;
    int longest_prefix = 0;
    struct fw_entry *curr = fw_head;
 
    if (curr == NULL) {
       return 0;
-   } else {
-      best_hop = curr->next_hop;
-      best_metric = curr->metric;
-      longest_prefix = curr->prefix;
-      curr = curr->next;
    }
 
    while (curr != NULL) {
-      fnaddr_t mask = mask_from_prefix(curr->prefix);
+      fnaddr_t mask = htonl(mask_from_prefix(curr->prefix));
       fnaddr_t masked_addr = mask & addr;
       fnaddr_t masked_dest = curr->dst & mask;
       if (masked_addr == masked_dest) {
@@ -781,7 +776,10 @@ void receive_DV(void *l3frame, int len) {
          } else {
             cur->prev->next = cur->next;
          }
-         cur->next->prev = cur->prev;
+   
+         if (cur->next) {
+            cur->next->prev = cur->prev;
+         }
          void *prev2 = cur;
          cur = cur->next;
          free(prev2);
@@ -795,8 +793,8 @@ void receive_DV(void *l3frame, int len) {
             cur->metric = 1;
             cur->fw_key = key;
             cur->next_hop = advert->src;
-            cur->last_seen = time(NULL);
          }
+         cur->last_seen = time(NULL);
          break;
       }
       prev = cur;
